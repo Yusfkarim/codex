@@ -1,15 +1,16 @@
 """codex_web.py -- run Codex Web as a standalone service.
 
-This is the whole server side of Codex Web: it launches `codex-web.py` (the
-browser front end for the Codex CLI) and reverse-proxies to it under one path
-prefix. Everything it touches lives under CODEX_WEB_HOME.
+Codex Web has no login of its own. It is a single-user tool: whoever can reach
+the port has the machine's Codex session, which is the same trust model as
+running `codex` in a terminal. Access is controlled by Docker, Fly, or whatever
+reverse proxy you put in front of it -- not by this module.
 
-    PORT=8098 CODEX_WEB_HOME=/data/codex-web python3 codex_web.py
+    CODEX_WEB_PORT=8098 CODEX_WEB_HOME=/data/codex-web python3 codex_web.py
 
-The launcher that ships in server-agent does the user authentication; this
-module deliberately has none, because it is meant to sit in a container or
-behind any reverse proxy. Set CODEX_WEB_ACCESS_TOKEN to require a bearer token
-of its own.
+The front end is launched on loopback. Requests arriving on this server are
+forwarded to it with a per-process token that the front end requires, so the
+front end cannot be reached around the launcher even though it is on the same
+host.
 """
 import http.client
 import os
@@ -23,24 +24,18 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-# The backend listens on its own loopback port; a front door (router.py) or
-# any reverse proxy binds the public one. Sharing a single variable would make
-# the two processes fight over the same socket.
-PORT = int(os.environ.get('CODEX_WEB_BACKEND_PORT') or os.environ.get('CODEX_WEB_PORT', '8098'))
-HOME = os.environ.get('CODEX_WEB_HOME', '/data/codex-web')
+PORT = int(os.environ.get('CODEX_WEB_PORT', '8098'))
+# The front end listens privately on the next port up, so the two processes
+# never compete for the same socket. Override if you have a reason to.
+BACKEND_PORT = int(os.environ.get('CODEX_WEB_BACKEND_PORT', str(PORT + 1)))
 BIND = os.environ.get('CODEX_WEB_BIND', '127.0.0.1')
-ACCESS_TOKEN = os.environ.get('CODEX_WEB_ACCESS_TOKEN', '')
-# A random per-process token keeps the Codex front end unreachable except
-# through this proxy: the front end checks the first path segment, and only we
-# know what it is.
+HOME = os.environ.get('CODEX_WEB_HOME', '/data/codex-web')
+LOG = os.environ.get('CODEX_WEB_LOG', '')
+
 _token = secrets.token_urlsafe(32)
 
 process = None
 lock = threading.Lock()
-
-
-def _backend_script():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'codex-web.py')
 
 
 def start():
@@ -58,18 +53,17 @@ def start():
             'HOME': HOME,
             'CODEX_HOME': os.path.join(HOME, '.codex'),
             'DEFAULT_CWD': work,
-            'PORT': str(PORT),
+            'PORT': str(BACKEND_PORT),
             'LINK_TOKEN': _token,
             'LANG': 'C.UTF-8',
             'PYTHONUNBUFFERED': '1',
         })
-        script = _backend_script()
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'codex-web.py')
         if not os.path.exists(script):
             print('[codex-web] missing %s' % script, file=sys.stderr, flush=True)
             return False
-        log_path = os.environ.get('CODEX_WEB_LOG', os.path.join(HOME, 'server.log'))
         try:
-            log = open(log_path, 'ab')
+            log = open(LOG or os.path.join(HOME, 'server.log'), 'ab')
         except OSError:
             log = subprocess.DEVNULL
         process = subprocess.Popen([sys.executable, script], env=env,
@@ -79,7 +73,7 @@ def start():
             if process.poll() is not None:
                 return False
             try:
-                with socket.create_connection(('127.0.0.1', PORT), .1):
+                with socket.create_connection(('127.0.0.1', BACKEND_PORT), .1):
                     return True
             except OSError:
                 time.sleep(.1)
@@ -104,7 +98,7 @@ def stop():
                 process.wait()
         process = None
         # a run job spawns `codex` children in its own session; take them too
-        subprocess.run(['pkill', '-TERM', '-f', _backend_script()],
+        subprocess.run(['pkill', '-TERM', '-f', 'codex-web.py'],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -113,18 +107,17 @@ def running():
         return bool(process and process.poll() is None)
 
 
-def proxy(handler, prefix='/codex-web'):
-    """Forward one request to the front end, streaming the response back."""
-    if not running():
-        return handler.send_error(503, 'Codex Web is stopped')
+def proxy(handler, prefix=''):
+    """Forward one request to the front end, streaming the response back.
+
+    Works at any mount point: `prefix` is the leading path this proxy owns and
+    is stripped before forwarding, while the front end's token travels in a
+    header."""
+    if not running() and not start():
+        return handler.send_error(503, 'Codex Web failed to start')
     u = urlsplit(handler.path)
     body = None
-    if handler.command in ('POST', 'PUT', 'PATCH'):
-        origin = handler.headers.get('Origin')
-        if origin:
-            o = urlsplit(origin)
-            if o.scheme not in ('http', 'https') or o.netloc.lower() != handler.headers.get('Host', '').lower():
-                return handler.send_error(403)
+    if handler.command in ('POST', 'PUT', 'PATCH', 'DELETE'):
         try:
             n = int(handler.headers.get('Content-Length', '0'))
         except ValueError:
@@ -132,12 +125,15 @@ def proxy(handler, prefix='/codex-web'):
         if n < 0 or n > 8 * 1024 * 1024:
             return handler.send_error(413)
         body = handler.rfile.read(n)
-    rest = u.path[len(prefix):] or '/'
-    # the front end expects its token as the first path segment
-    target = '/' + _token + rest + (('?' + u.query) if u.query else '')
-    conn = http.client.HTTPConnection('127.0.0.1', PORT, timeout=3600)
+    rest = u.path[len(prefix):] if prefix and u.path.startswith(prefix) else u.path
+    rest = rest or '/'
+    if not rest.startswith('/'):
+        rest = '/' + rest
+    target = rest + (('?' + u.query) if u.query else '')
+    conn = http.client.HTTPConnection('127.0.0.1', BACKEND_PORT, timeout=3600)
     try:
         conn.request(handler.command, target, body=body, headers={
+            'X-Codex-Token': _token,
             'Content-Type': handler.headers.get('Content-Type', 'application/json'),
             'Accept': handler.headers.get('Accept', 'application/json'),
             'Accept-Encoding': 'identity',
@@ -167,37 +163,25 @@ def proxy(handler, prefix='/codex-web'):
         conn.close()
 
 
-class Standalone(BaseHTTPRequestHandler):
-    """A minimal entry point so the module can run without server-agent."""
-
+class Server(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
+    server_version = 'codex'
 
     def log_message(self, *a):
         pass
 
-    def _authorised(self):
-        if not ACCESS_TOKEN:
-            return True
-        auth = self.headers.get('Authorization', '')
-        return auth == 'Bearer ' + ACCESS_TOKEN
-
     def _route(self):
-        if not self._authorised():
-            return self.send_error(401)
-        if self.command == 'GET' and urlsplit(self.path).path in ('/', '/health'):
-            if not running() and not start():
-                return self.send_error(503, 'Codex Web failed to start')
+        path = urlsplit(self.path).path
+        if path in ('/health', '/healthz'):
             body = b'{"ok": true}'
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             return self.wfile.write(body)
-        if urlsplit(self.path).path.startswith('/codex-web'):
-            if not running() and not start():
-                return self.send_error(503, 'Codex Web failed to start')
-            return proxy(self)
-        return self.send_error(404)
+        # Everything else is the app. It is served at "/" and also under
+        # /codex-web/ so that both an embedded card and a direct link work.
+        return proxy(self, '')
 
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _route
 
@@ -206,10 +190,17 @@ def main():
     if not start():
         print('[codex-web] could not start the front end', file=sys.stderr)
         return 1
-    print('[codex-web] listening on http://%s:%d/codex-web/' % (BIND, PORT), flush=True)
+    print('[codex-web] http://%s:%d/  (front end on 127.0.0.1:%d)' % (BIND, PORT, BACKEND_PORT), flush=True)
+    print('[codex-web] home: %s' % HOME, flush=True)
     ThreadingHTTPServer.daemon_threads = True
-    with ThreadingHTTPServer((BIND, PORT), Standalone) as httpd:
-        httpd.serve_forever()
+    allow_reuse = ThreadingHTTPServer.allow_reuse_address
+    ThreadingHTTPServer.allow_reuse_address = True
+    try:
+        with ThreadingHTTPServer((BIND, PORT), Server) as httpd:
+            httpd.serve_forever()
+    finally:
+        ThreadingHTTPServer.allow_reuse_address = allow_reuse
+        stop()
     return 0
 
 

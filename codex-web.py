@@ -363,12 +363,20 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _guard(self):
+        """Check the shared token and return the route segments.
+
+        The token may be the first segment (direct access) or may arrive as the
+        X-Codex-Token header, which is what a reverse proxy sends when it mounts
+        this app under a prefix of its own.
+        """
         path = urllib.parse.urlparse(self.path).path
         parts = [p for p in path.split("/") if p]
-        if not parts or parts[0] != TOKEN:
-            self._json({"error": "forbidden"}, 403)
-            return None
-        return parts[1:]
+        if parts and parts[0] == TOKEN:
+            return parts[1:]
+        if self.headers.get("X-Codex-Token") == TOKEN:
+            return parts
+        self._json({"error": "forbidden"}, 403)
+        return None
 
     def _json(self, payload, status=200):
         raw = json.dumps(payload, ensure_ascii=False).encode()

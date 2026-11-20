@@ -27,7 +27,7 @@ ENV CODEX_WEB_HOME=/data/codex-web \
     CODEX_WEB_BIND=0.0.0.0 \
     PYTHONUNBUFFERED=1
 
-VOLUME ["/data/codex-web"]
+VOLUME ["/data"]
 EXPOSE 8098
 
 CMD ["python3", "codex_web.py"]

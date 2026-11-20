@@ -175,7 +175,7 @@ button.mini{font-size:11px;padding:3px 8px;margin-left:6px;border-radius:7px}
 </div>
 
 <script>
-const API = "/codex-web/api/";
+const API = "api/";  // relative: works mounted at /codex-web/ or at /
 const $ = (s) => document.querySelector(s);
 const log = $("#log");
 let cwd = "", currentJob = null, sessionId = null, sessionAccount = null, history = [];
