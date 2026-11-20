@@ -170,6 +170,8 @@ class Server(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    PREFIXES = ('/codex-web',)
+
     def _route(self):
         path = urlsplit(self.path).path
         if path in ('/health', '/healthz'):
@@ -180,7 +182,17 @@ class Server(BaseHTTPRequestHandler):
             self.end_headers()
             return self.wfile.write(body)
         # Everything else is the app. It is served at "/" and also under
-        # /codex-web/ so that both an embedded card and a direct link work.
+        # /codex-web/ so that both an embedded dashboard card and a direct link
+        # work with the same code.
+        for prefix in self.PREFIXES:
+            if path == prefix:
+                self.send_response(301)
+                self.send_header('Location', prefix + '/')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return None
+            if path.startswith(prefix + '/'):
+                return proxy(self, prefix)
         return proxy(self, '')
 
     do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _route
