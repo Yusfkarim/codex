@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0d10">
+<title>Codex</title>
+<style>
+:root{
+  --bg:#0d0d10; --panel:#141419; --panel2:#1b1b22; --line:#26262f;
+  --fg:#ececf1; --dim:#8e8e99; --accent:#10a37f; --accent2:#7ee787;
+  --warn:#e3b341; --err:#ff7b72; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+     display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);
+       background:var(--panel);flex:0 0 auto;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+header::-webkit-scrollbar{display:none}
+header>*{flex:0 0 auto}
+.app-header{display:flex;flex-direction:column;align-items:stretch;gap:10px;overflow:visible;padding:12px 14px}
+.app-header>*{flex:initial;min-width:0}
+.header-top{display:flex;align-items:center;gap:12px;justify-content:space-between;min-width:0}
+.header-identity{display:flex;align-items:center;gap:8px;min-width:0}
+.header-top #model{width:min(52%, 300px);max-width:none;min-width:0;font-size:13px}
+.header-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.header-nav button{min-width:0;padding:8px 4px;font-size:13px;white-space:nowrap;background:#1b1b22}
+.header-nav button:hover{border-color:#397a69;background:#202b28}
+@media (max-width:390px){.app-header{padding:10px;gap:8px}.header-identity{gap:5px}.header-top #model{width:46%}.header-nav button{font-size:12px;padding:8px 2px}.header-identity .plan{max-width:105px;overflow:hidden;text-overflow:ellipsis}}
+
+.brand{font-weight:700;letter-spacing:.5px;font-size:15px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:0 0 auto}
+.dot.on{background:var(--accent2);box-shadow:0 0 8px var(--accent2)}
+select,button,input,textarea{font:inherit;color:var(--fg);background:var(--panel2);
+  border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+select{max-width:30vw}
+button{cursor:pointer}
+button:active{transform:translateY(1px)}
+.spacer{flex:1}
+#log{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px;
+     -webkit-overflow-scrolling:touch}
+.msg{border-radius:13px;padding:11px 13px;max-width:100%;word-wrap:break-word;overflow-wrap:anywhere}
+.msg.user{background:#1d2a26;border:1px solid #2a4a40;align-self:flex-end;max-width:92%}
+.msg.bot{background:var(--panel);border:1px solid var(--line)}
+.msg .role{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin-bottom:5px}
+pre{background:#0a0a0d;border:1px solid var(--line);border-radius:9px;padding:10px;overflow-x:auto;
+    font:13px/1.5 var(--mono);margin:8px 0;white-space:pre}
+code{font:13px var(--mono);background:#0a0a0d;padding:1px 5px;border-radius:5px}
+pre code{background:none;padding:0}
+.act{background:#101015;border:1px solid var(--line);border-left:3px solid #3a3a46;
+     border-radius:8px;padding:7px 10px;font:12px/1.5 var(--mono);color:var(--dim);
+     white-space:pre-wrap;word-break:break-word}
+.act.err{border-left-color:var(--err);color:#ffb4ae}
+.act.warn{border-left-color:var(--warn)}
+.meta{font-size:11px;color:var(--dim);margin-top:6px}
+.pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;
+      padding:1px 8px;font-size:11px;color:var(--dim);margin-right:6px}
+footer{flex:0 0 auto;border-top:1px solid var(--line);background:var(--panel);padding:9px 10px;
+       padding-bottom:calc(9px + env(safe-area-inset-bottom))}
+.row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;resize:none;max-height:180px;min-height:44px;border-radius:11px}
+#send{background:var(--accent);color:#04231c;border:none;font-weight:700;padding:0 18px;height:44px}
+#stop{background:#3a1f22;color:#ffb4ae;border:1px solid #5c2b30;padding:0 14px;height:44px;display:none}
+.tools{display:flex;gap:8px;margin-top:8px;overflow-x:auto;scrollbar-width:none;align-items:center}
+.tools::-webkit-scrollbar{display:none}
+.tools>*{flex:0 0 auto}
+.tools select,.tools button{font-size:12px;padding:6px 9px;white-space:nowrap}
+#cwdLabel{white-space:nowrap;max-width:40vw;overflow:hidden;text-overflow:ellipsis}
+#drawer{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:40}
+#drawer.open{display:block}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:12%;background:var(--panel);
+       border-top:1px solid var(--line);border-radius:16px 16px 0 0;display:flex;flex-direction:column}
+.sheet header{border-radius:16px 16px 0 0}
+.sheetbody{flex:1;overflow-y:auto;padding:10px 12px}
+.item{display:flex;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:9px;
+      background:var(--panel2);margin-bottom:6px;border:1px solid var(--line);font-size:13px}
+.item.click{cursor:pointer}
+.item.click:active{background:#26262f}
+.item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .mt{color:var(--dim);font-size:11px;white-space:nowrap}
+.mono{font-family:var(--mono);font-size:12px;color:var(--dim);word-break:break-all}
+.sand{border:1px solid var(--line);border-radius:99px;padding:3px 9px;white-space:nowrap}
+.sand.ws{color:var(--accent2);border-color:#245c46}
+.sand.ro{color:#9fb4ff;border-color:#2c3a5e}
+.sand.full{color:var(--warn);border-color:#5a4a1e}
+.plan{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;
+      color:var(--dim);white-space:nowrap}
+.plan.pro{color:#0b2e1f;background:var(--accent2);border-color:var(--accent2);font-weight:700}
+.plan.limited{color:var(--err);border-color:#5c2b30}
+.plan.ok{color:var(--accent2);border-color:#245c46}
+.plan-bar{height:3px;background:#26262f;border-radius:2px;overflow:hidden;margin-top:2px}
+.plan-bar i{display:block;height:100%;background:var(--accent2)}
+.notice{background:#2a2416;border:1px solid #5a4a1e;color:var(--warn);border-radius:9px;
+        padding:8px 11px;font-size:13px;margin-bottom:4px}
+.hint{color:var(--dim);font-size:12px;padding:6px 2px}
+.acct{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--panel2);
+      border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:7px}
+.acct b{font-size:14px}
+.acct-sub{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+.acct-r{text-align:right}
+.btn{display:block;background:var(--accent);color:#04231c;text-decoration:none;font-weight:700;
+     text-align:center;padding:11px;border-radius:11px;margin:10px 0}
+.code{letter-spacing:4px;font-family:var(--mono)}
+.code.big{font-size:28px;text-align:center;margin:14px 0;padding:12px;
+     background:#0a0a0d;border:1px solid var(--line);border-radius:11px}
+button.mini{font-size:11px;padding:3px 8px;margin-left:6px;border-radius:7px}
+
+/* Session history: mobile-first cards with explicit, reversible UI actions. */
+.history-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 2px 15px}
+.history-intro h2{font-size:19px;letter-spacing:-.3px;margin:0;color:var(--fg)}
+.history-intro p{font-size:12px;color:var(--dim);margin:3px 0 0}
+.history-count{font-size:12px;color:var(--accent2);border:1px solid #285344;background:#152820;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.history-search{width:100%;min-height:43px;background:#101217;border-color:#30333c;margin-bottom:13px}
+.history-list{display:grid;gap:10px;padding-bottom:16px}
+.history-card{background:linear-gradient(145deg,#1b1c23,#16171d);border:1px solid #30323b;border-radius:15px;padding:13px;min-width:0}
+.history-card.active{border-color:#35765e;box-shadow:inset 0 0 0 1px #285344}
+.history-open{display:block;text-align:left;width:100%;padding:0;border:0;background:transparent;min-width:0}
+.history-title{font-weight:700;font-size:15px;line-height:1.45;white-space:normal;overflow-wrap:anywhere;color:var(--fg)}
+.history-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#a6a8b2;font-size:12px;margin-top:5px;line-height:1.55;overflow-wrap:anywhere}
+.history-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;color:#9b9eaa;font-size:11px}
+.history-meta span{background:#111318;border:1px solid #30323b;border-radius:7px;padding:3px 7px;overflow-wrap:anywhere}
+.history-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:11px;padding-top:10px;border-top:1px solid #2b2d35}
+.history-actions button,.history-edit button,.history-confirm button{font-size:12px;padding:7px 10px;min-height:36px}
+.history-actions .danger,.history-confirm .danger{color:#ffb4ae;border-color:#5c3036;background:#302024}
+.history-edit,.history-confirm{margin-top:10px;padding:11px;background:#101217;border:1px solid #343842;border-radius:11px}
+.history-edit input{width:100%;margin-bottom:8px;min-height:42px}
+.history-buttons{display:flex;justify-content:flex-end;gap:7px}.history-buttons .primary{background:var(--accent);color:#05241b;font-weight:700}
+.history-empty{text-align:center;padding:32px 15px;color:var(--dim);border:1px dashed #343740;border-radius:14px}
+.history-error{margin:8px 0;color:var(--err);font-size:12px}
+
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="header-top">
+    <div class="header-identity"><span class="dot" id="dot"></span><span class="brand">Codex</span><span id="plan" class="plan">not signed in</span></div>
+    <select id="model" aria-label="Model"></select>
+  </div>
+  <nav class="header-nav" aria-label="Codex sections">
+    <button id="files">Files</button><button id="sess">History</button>
+    <button id="skills">Skills</button><button id="accts">Accounts</button>
+  </nav>
+</header>
+
+<div id="log"></div>
+
+<footer>
+  <div class="row">
+    <textarea id="prompt" rows="1" placeholder="Ask Codex to build something…"></textarea>
+    <button id="stop">Stop</button>
+    <button id="send">Send</button>
+  </div>
+  <div class="tools">
+    <span class="mono" id="cwdLabel">—</span>
+    <span class="mono sand ws" id="sandLabel">workspace-write</span>
+    <button id="pick">Workspace</button>
+    <select id="sandbox">
+      <option value="workspace-write">workspace-write</option>
+      <option value="read-only">read-only</option>
+    </select>
+    <button id="newchat">New</button>
+  </div>
+</footer>
+
+<div id="drawer">
+  <div class="sheet">
+    <header>
+      <span class="brand" id="drawerTitle">Workspace</span>
+      <span class="spacer"></span>
+      <button id="closeDrawer">Close</button>
+    </header>
+    <div class="sheetbody" id="drawerBody"></div>
+  </div>
+</div>
+
+<script>
+const API = "/codex-web/api/";
+const $ = (s) => document.querySelector(s);
+const log = $("#log");
+let cwd = "", currentJob = null, sessionId = null, sessionAccount = null, history = [];
+
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+
+function md(text){
+  const blocks = [];
+  let out = esc(text).replace(/```(\w*)\n?([\s\S]*?)```/g, (m,lang,code)=>{
+    blocks.push("<pre><code>"+code.replace(/\n$/,"")+"</code></pre>");
+    return "\u0000B"+(blocks.length-1)+"\u0000";
+  });
+  out = out.replace(/`([^`\n]+)`/g,"<code>$1</code>");
+  out = out.replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>");
+  out = out.replace(/\n{3,}/g,"\n\n");
+  out = out.replace(/\n/g,"<br>");
+  out = out.replace(/\u0000B(\d+)\u0000/g,(m,i)=>blocks[i]);
+  return out;
+}
+
+function scroll(){log.scrollTop = log.scrollHeight;}
+
+function addMsg(role, html, cls){
+  const el = document.createElement("div");
+  el.className = "msg " + role + (cls?" "+cls:"");
+  el.innerHTML = '<div class="role">'+(role==="user"?"you":"codex")+'</div><div class="body">'+html+'</div>';
+  log.appendChild(el); scroll();
+  el.query = sel => el.querySelector(sel);
+  el.body = el.querySelector(".body");
+  return el;
+}
+
+function addAct(text, cls){
+  const el = document.createElement("div");
+  el.className = "act"+(cls?" "+cls:"");
+  el.textContent = text;
+  log.appendChild(el); scroll(); return el;
+}
+
+async function api(path, opts){
+  const r = await fetch(API+path, opts);
+  const ct = r.headers.get("content-type")||"";
+  if(!ct.includes("json")) return r.text();
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+function savePrefs(){
+  try{ localStorage.setItem("codex-prefs", JSON.stringify({
+    model:$("#model").value, cwd, sandbox:$("#sandbox").value })); }catch(e){}
+}
+function loadPrefs(){
+  try{ return JSON.parse(localStorage.getItem("codex-prefs")||"{}"); }catch(e){ return {}; }
+}
+
+function saveCurrentSession(){
+  try { if(sessionId && sessionAccount) localStorage.setItem("codex-current-session", JSON.stringify({id:sessionId, account:sessionAccount, cwd})); } catch(e) {}
+}
+function clearCurrentSession(){ try { localStorage.removeItem("codex-current-session"); } catch(e) {} }
+async function openSavedSession(id, account, fallbackCwd){
+  const session = await api("session?id="+encodeURIComponent(id)+"&account="+encodeURIComponent(account));
+  sessionId = session.id; sessionAccount = session.account;
+  cwd = session.cwd || fallbackCwd || cwd;
+  $("#cwdLabel").textContent = cwd;
+  log.innerHTML = "";
+  for(const message of session.messages || []) addMsg(message.role === "user" ? "user" : "bot", md(message.text));
+  if(!(session.messages || []).length) addAct("No saved messages in this session yet.");
+  saveCurrentSession();
+}
+
+async function boot(){
+  const prefs = loadPrefs();
+  try{
+    const m = await api("models");
+    $("#model").innerHTML = m.models.map(x=>`<option>${esc(x)}</option>`).join("");
+    if(prefs.model && m.models.includes(prefs.model)) $("#model").value = prefs.model;
+    if(prefs.sandbox) $("#sandbox").value = prefs.sandbox;
+    cwd = prefs.cwd || m.cwd;
+    $("#cwdLabel").textContent = cwd;
+    paintSandbox();
+    try {
+      const saved = JSON.parse(localStorage.getItem("codex-current-session") || "null");
+      if(saved && saved.id && saved.account) await openSavedSession(saved.id, saved.account, saved.cwd);
+    } catch(e) { addAct("Could not restore the last session: " + e.message, "err"); }
+  }catch(e){ addAct("init error: "+e.message,"err"); }
+  setStatus(false);
+  refreshPlan();
+  setInterval(refreshPlan, 60000);
+}
+
+async function refreshPlan(){
+  try{
+    const l = await api("limits");
+    if(l.error){ return; }
+    const w = l.windows && (l.windows.primary_window || l.windows.secondary_window);
+    const chip = $("#plan");
+    chip.textContent = (l.plan || "signed in") + (w && w.used_percent != null ? " · " + w.used_percent + "%" : "");
+    chip.className = "plan " + (l.limit_reached ? "limited" : (l.plan === "pro" ? "pro" : "ok"));
+    chip.title = w ? ("window " + Math.round((w.window_seconds||0)/3600) + "h · resets " +
+      new Date((w.resets_at||0)*1000).toUTCString()) : "";
+  }catch(e){}
+}
+
+function paintSandbox(){
+  const s = $("#sandbox").value;
+  const label = $("#sandLabel");
+  label.textContent = s;
+  label.className = "mono sand " + (s==="danger-full-access"?"full":(s==="read-only"?"ro":"ws"));
+}
+
+function setStatus(on){ $("#dot").className = "dot"+(on?" on":""); }
+
+async function run(prompt, resumeId){
+  const bot = addMsg("bot","");
+  const body = {prompt, cwd, model:$("#model").value, sandbox:$("#sandbox").value};
+  if(resumeId){ body.session_id = resumeId; body.account = sessionAccount; }
+  const res = await fetch(API+(resumeId?"resume":"run"), {
+    method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+  });
+  if(!res.ok){ bot.body.innerHTML += '<div class="act err">'+esc(await res.text())+'</div>'; return; }
+  const reader = res.body.getReader(); const dec = new TextDecoder();
+  let buf = "", mdBuf = "", model = null, usage = null, toolLines = [];
+  while(true){
+    const {done,value} = await reader.read();
+    if(done) break;
+    buf += dec.decode(value,{stream:true});
+    let idx;
+    while((idx = buf.indexOf("\n\n")) >= 0){
+      const frame = buf.slice(0,idx); buf = buf.slice(idx+2);
+      if(!frame.startsWith("data:")) continue;
+      const payload = JSON.parse(frame.slice(5));
+      const ev = payload.event, d = payload.data;
+      if(ev === "job"){ currentJob = d.job_id; $("#send").style.display="none"; $("#stop").style.display=""; setStatus(true); }
+      else if(ev === "stderr"){ toolLines.push(d.text || d.message || JSON.stringify(d)); }
+      else if(ev === "account"){ sessionAccount = d.slug; saveCurrentSession(); }
+      else if(ev === "event"){
+        if(d.type === "thread.started"){ sessionId = d.thread_id; saveCurrentSession(); }
+        else if(d.type === "item.completed"){
+          const it = d.item || {};
+          if(it.type === "agent_message"){ mdBuf += (it.text||""); }
+          else if(it.type === "command_execution"){
+            toolLines.push("$ "+(it.command||""));
+            if(it.exit_code) toolLines.push("  exit "+it.exit_code);
+          }
+          else if(it.type === "file_change"){ toolLines.push("~ edited "+(it.path||"")); }
+          else if(it.type === "mcp_tool_call"){ toolLines.push("* "+(it.tool||"mcp")); }
+          else if(it.type === "reasoning" && it.text){ toolLines.push("· "+it.text.split("\n")[0].slice(0,110)); }
+          else if(it.text){ toolLines.push("· "+it.text.slice(0,160)); }
+        }
+        else if(d.type === "turn.completed"){ usage = d.usage; }
+        else if(d.type === "error" || d.type === "turn.failed"){ toolLines.push(d.message || (d.error && d.error.message) || JSON.stringify(d)); }
+      }
+      else if(ev === "done" && d.code !== 0){ toolLines.push("Codex exited with code " + d.code); }
+      else if(ev === "account"){
+        const n = document.createElement("div");
+        n.className = "hint mono";
+        n.textContent = "\u25cf account: " + (d.email||d.slug) + " (" + (d.plan||"") + ")";
+        log.appendChild(n); scroll();
+      }
+      else if(ev === "rotate"){ sessionAccount = d.to; sessionId = null; clearCurrentSession();
+        const n = document.createElement("div");
+        n.className = "notice";
+        n.textContent = "\u21bb " + d.reason + " (" + (d.from||"") + " \u2192 " + (d.to||"") +
+          (d.email ? ", " + d.email : "") + ")";
+        log.appendChild(n); scroll();
+      }
+      else if(ev === "queued"){
+        const n = document.createElement("div");
+        n.className = "notice";
+        n.textContent = "\u23f3 " + d.message;
+        log.appendChild(n); scroll();
+      }
+      else if(ev === "fallback"){
+        const n = document.createElement("div");
+        n.className = "notice";
+        n.textContent = "\u26a0 " + d.reason + " (" + d.from + " \u2192 " + d.to + ")";
+        log.appendChild(n); scroll();
+      }
+      else if(ev === "error"){ addAct(d.message,"err"); }
+      if(mdBuf || toolLines.length){
+        let html = "";
+        if(toolLines.length){ html += '<div class="act">'+esc(toolLines.join("\n"))+'</div>'; toolLines = []; }
+        if(mdBuf){ html += md(mdBuf); mdBuf = ""; }
+        bot.body.innerHTML += html;
+        scroll();
+      }
+    }
+  }
+  if(usage){
+    const u = usage;
+    bot.body.innerHTML += '<div class="meta"><span class="pill">'+esc($("#model").value)+'</span>'+
+      '<span class="pill">in '+(u.input_tokens||0)+'</span>'+
+      '<span class="pill">out '+(u.output_tokens||0)+'</span>'+
+      (u.cached_input_tokens?'<span class="pill">cache '+(u.cached_input_tokens||0)+'</span>':'')+'</div>';
+  }
+  currentJob = null; $("#send").style.display=""; $("#stop").style.display="none"; setStatus(false);
+}
+
+$("#model").addEventListener("change", savePrefs);
+$("#sandbox").addEventListener("change", () => { paintSandbox(); savePrefs(); });
+$("#send").onclick = async () => {
+  const p = $("#prompt").value.trim();
+  if(!p) return;
+  $("#prompt").value = ""; $("#prompt").style.height = "auto";
+  addMsg("user", md(p));
+  history.push(p);
+  try{ await run(p, sessionId); }catch(e){ addAct("error: "+e.message,"err"); }
+  finally { currentJob = null; $("#send").style.display=""; $("#stop").style.display="none"; setStatus(false); }
+};
+
+$("#stop").onclick = async () => {
+  if(!currentJob) return;
+  await fetch(API+"stop",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({job_id:currentJob})});
+};
+
+$("#prompt").addEventListener("input", e => {
+  e.target.style.height = "auto";
+  e.target.style.height = Math.min(e.target.scrollHeight,180) + "px";
+});
+$("#prompt").addEventListener("keydown", e => {
+  if(e.key === "Enter" && (e.metaKey||e.ctrlKey)){ $("#send").click(); }
+});
+
+$("#newchat").onclick = () => { sessionId = null; sessionAccount = null; clearCurrentSession(); log.innerHTML = ""; addMsg("bot","Ready."); };
+
+function openDrawer(title, body){
+  $("#drawerTitle").textContent = title;
+  $("#drawerBody").innerHTML = body;
+  $("#drawer").classList.add("open");
+}
+$("#closeDrawer").onclick = () => $("#drawer").classList.remove("open");
+$("#drawer").onclick = e => { if(e.target.id === "drawer") $("#drawer").classList.remove("open"); };
+
+$("#pick").onclick = () => browse(cwd);
+$("#files").onclick = () => browse(cwd);
+
+async function browse(path){
+  try{
+    const d = await api("dirs?path="+encodeURIComponent(path));
+    let html = '<div class="hint mono">'+esc(d.path)+'</div>';
+    if(d.parent) html += '<div class="item click" data-p="'+esc(d.parent)+'">↰ parent</div>';
+    for(const e of d.entries){
+      if(e.hidden) continue;
+      html += '<div class="item click" data-p="'+esc(e.path)+'"><span class="nm">'+
+        (e.dir?"📁 ":"📄 ")+esc(e.name)+'</span><span class="mt">'+
+        (e.dir?"":Math.round(e.size/1024)+" KB")+'</span></div>';
+    }
+    openDrawer("Workspace", html);
+    $("#drawerBody").querySelectorAll(".item.click").forEach(el => {
+      el.onclick = () => {
+        const p = el.dataset.p;
+        if(p.endsWith("/") || !p.includes(".")) { browse(p); }
+        else { showFile(p); }
+      };
+    });
+  }catch(e){ openDrawer("Workspace", '<div class="act err">'+esc(e.message)+'</div>'); }
+}
+
+async function showFile(path){
+  try{
+    const f = await api("file?path="+encodeURIComponent(path));
+    if(f.binary){ openDrawer("File", '<div class="hint">binary file · '+f.size+' bytes</div>'); return; }
+    openDrawer(path.split("/").pop(), "<pre>"+esc(f.content)+"</pre>");
+  }catch(e){ openDrawer("File", '<div class="act err">'+esc(e.message)+'</div>'); }
+}
+
+function usageWindow(label, w){
+  if(!w) return '';
+  const seconds = Number(w.resets_at);
+  const hasReset = Number.isFinite(seconds) && seconds > 0;
+  const expired = hasReset && seconds * 1000 <= Date.now();
+  const value = Number(w.used_percent);
+  const pct = expired ? 'چاوەڕوانی نوێکردنەوە' :
+    (w.used_percent !== null && w.used_percent !== undefined && Number.isFinite(value) ? value + '% بەکارهاتووە' : 'بەکارهێنان نەزانراوە');
+  const when = hasReset ? new Date(seconds * 1000).toLocaleString() : 'کاتی ڕیسێت نەزانراوە';
+  const hrs = Number(w.window_seconds) / 3600;
+  const windowName = Number.isFinite(hrs) && hrs > 0 ? (hrs >= 24 ? (Math.round(hrs / 24 * 10) / 10) + ' ڕۆژ' : hrs + ' کاتژمێر') : label;
+  return '<span class="acct-sub">'+esc(windowName)+' · '+esc(pct)+' · ڕیسێت: '+esc(when)+'</span>';
+}
+function accountRow(a){
+  const windows = a.windows || {};
+  let cls = a.available ? "ok" : (a.has_auth ? "limited" : "");
+  if(a.current) cls = "pro";
+  const st = a.state || (a.available ? "ready" : (a.has_auth ? "exhausted" : "idle"));
+  const badge = st === "ready" ? "" : '<span class="plan '+(st === "waiting" ? "ok" : "limited")+'">'+esc(st)+'</span> ';
+  const reason = (st === "ready" || st === "exhausted") ? "" : '<span class="acct-sub">'+esc(a.reason||"")+'</span>';
+  const acts = a.slug === "main" ? "" : ' <button class="mini" data-act="retry" data-slug="'+esc(a.slug)+'">Retry</button>'+
+    ' <button class="mini" data-act="remove" data-slug="'+esc(a.slug)+'">Remove</button>';
+  const amounts = usageWindow('کاتی یەکەم', windows.primary_window) + usageWindow('کاتی دووەم', windows.secondary_window);
+  return '<div class="acct"><div><b>'+esc(a.label)+'</b>'+(a.current?" ●":"")+
+    '<span class="acct-sub">'+esc(a.email||a.slug)+' · '+esc(a.plan||"?")+'</span>'+reason+
+    (amounts || '<span class="acct-sub">زانیاری ڕیسێت بەردەست نییە</span>')+'</div>'+
+    '<div class="acct-r">'+badge+'<span class="plan '+cls+'">'+esc(st)+'</span>'+acts+'</div></div>';
+}
+let accountRefreshing = false;
+async function refreshAccountRows(){
+  if(accountRefreshing || !document.querySelector('#accountRows') || !$('#drawer').classList.contains('open')) return;
+  accountRefreshing = true;
+  try {
+    const data = await api('accounts');
+    const rows = document.querySelector('#accountRows');
+    if(rows){ rows.innerHTML = (data.accounts||[]).map(accountRow).join(''); bindAccountButtons(); }
+  } catch(e) {
+    const rows=document.querySelector('#accountRows');
+    if(rows) rows.insertAdjacentHTML('beforeend', '<div class="act err">Usage refresh failed: '+esc(e.message)+'</div>');
+  } finally { accountRefreshing = false; }
+}
+setInterval(refreshAccountRows, 30000);
+
+$("#accts").onclick = async () => {
+  try{
+    const d = await api("accounts");
+    let html = '<div id="accountRows">'+(d.accounts || []).map(accountRow).join('')+'</div>';
+    html += '<div class="hint">Accounts are used one after another: the current one keeps '+
+            'serving until its quota runs out, then the next one takes over.</div>';
+    html += '<div class="row" style="margin-top:8px">'+
+      '<input id="accLabel" placeholder="label (e.g. work)" style="flex:1">'+
+      '<button id="accAdd">Add</button></div>';
+    openDrawer("Account pool", html);
+    bindAccountButtons();
+    $("#accAdd").onclick = async () => {
+      const label = $("#accLabel").value.trim() || "account";
+      const btn = $("#accAdd");
+      btn.disabled = true; btn.textContent = "...";
+      try{
+        const r = await api("accounts/login", {method:"POST",
+          headers:{"Content-Type":"application/json"}, body:JSON.stringify({label})});
+        if(r.already){
+          $("#drawerBody").innerHTML = '<div class="notice" style="border-color:#245c46;color:var(--accent2)">'+
+            esc(r.slug)+' is already signed in ('+esc(r.email||"")+').</div>';
+          setTimeout(()=>$("#accts").click(), 1200);
+          return;
+        }
+        if(!r.code) throw new Error("no code returned - the login did not start");
+        showLoginCode(r);
+        pollAccount(r.slug);
+      }catch(e){
+        btn.disabled = false; btn.textContent = "Add";
+        $("#drawerBody").innerHTML = '<div class="act err">add account failed: '+esc(e.message)+'</div>'+
+          '<div class="row" style="margin-top:8px">'+
+          '<input id="accLabel" placeholder="label (e.g. work)" style="flex:1">'+
+          '<button id="accAdd">Add</button></div>';
+        const again = $("#accAdd");
+        again.onclick = $("#accAdd").onclick;
+        $("#accLabel").focus();
+      }
+    };
+  }catch(e){ openDrawer("Account pool", '<div class="act err">'+esc(e.message)+'</div>'); }
+};
+
+function bindAccountButtons(){
+  $("#drawerBody").querySelectorAll("button.mini").forEach(el => {
+    el.onclick = async () => {
+      const slug = el.dataset.slug, act = el.dataset.act;
+      el.disabled = true;
+      try{
+        if(act === "remove"){
+          await api("accounts/remove", {method:"POST",
+            headers:{"Content-Type":"application/json"}, body:JSON.stringify({slug})});
+          $("#accts").click();
+          return;
+        }
+        const r = await api("accounts/login", {method:"POST",
+          headers:{"Content-Type":"application/json"}, body:JSON.stringify({slug})});
+        if(r.already){ $("#accts").click(); return; }
+        if(!r.code) throw new Error("no code returned");
+        showLoginCode(r);
+        pollAccount(r.slug);
+      }catch(e){
+        el.disabled = false;
+        $("#drawerBody").innerHTML = '<div class="act err">'+esc(act)+' failed: '+esc(e.message)+'</div>';
+      }
+    };
+  });
+}
+
+function showLoginCode(r){
+  const code = r.code || "";
+  const plain = code.replace(/-/g,"");
+  $("#drawerBody").innerHTML =
+    '<div class="hint">Open this link on your phone, sign in with the NEW account, '+
+    'then type the code:</div>'+
+    '<a class="btn" href="'+esc(r.url||"https://auth.openai.com/codex/device")+'" target="_blank">'+
+      'Open the sign-in page</a>'+
+    '<div class="code big">'+esc(code)+'</div>'+
+    '<div class="hint">if the page refuses it, type this instead: <b>'+esc(plain)+'</b></div>'+
+    '<div class="hint" id="loginState">waiting for you to sign in \u2026</div>';
+}
+
+function pollAccount(slug){
+  const t = setInterval(async () => {
+    try{
+      const st = await api("accounts/login?slug="+encodeURIComponent(slug));
+      const box = document.querySelector("#loginState");
+      if(st.state === "ready"){
+        clearInterval(t); refreshPlan();
+        $("#drawerBody").innerHTML = '<div class="notice" style="border-color:#245c46;color:var(--accent2)">'+
+          'Account added: '+esc(slug)+' ('+esc(st.email||"")+')</div>';
+        try { const m = await api("models"); $("#model").innerHTML = m.models.map(x=>`<option>${esc(x)}</option>`).join(""); } catch(e) {}
+        setTimeout(()=>$("#accts").click(), 1200);
+        return;
+      }
+      if(st.state === "failed"){
+        clearInterval(t);
+        $("#drawerBody").innerHTML = '<div class="act err">'+esc(st.detail||"the login failed")+'</div>'+
+          (st.log ? '<div class="act">'+esc(st.log.slice(-400))+'</div>' : "")+
+          '<div class="row" style="margin-top:8px"><button id="accRetry">Retry</button></div>';
+        const rb = document.querySelector("#accRetry");
+        if(rb) rb.onclick = async () => {
+          const r = await api("accounts/login", {method:"POST",
+            headers:{"Content-Type":"application/json"}, body:JSON.stringify({slug})});
+          if(r.code){ showLoginCode(r); pollAccount(slug); }
+        };
+        return;
+      }
+      if(box){
+        const c = document.querySelector(".code.big");
+        if(c){
+          if(st.code && c.textContent !== st.code) c.textContent = st.code;
+          if(!st.code) c.textContent = "renewing code…";
+        }
+        box.textContent = st.detail || (st.code ? "waiting for you to sign in …" : "code expired; requesting a new one …");
+      }
+    }catch(e){}
+  }, 4000);
+}
+
+$("#skills").onclick = async () => {
+  openDrawer('Skills', '<div class="hint">Loading Codex skills…</div>');
+  try {
+    const d = await api('skills?cwd='+encodeURIComponent(cwd));
+    const installed = new Set((d.skills||[]).map(x=>x.name));
+    let html = '<div class="hint">سکیلەکانی Codex؛ کلیک بکە بۆ بەکارهێنانی لە نامەکەت. ئەیجنتیش دەتوانێت لە workspace-write سکیل زیاد بکات؛ لە read-only ناتوانێت فایل بنووسێت. هەندێک سکیل پێویستیان بە ئامراز یان مۆڵەت هەیە.</div>';
+    for(const skill of d.skills || []){
+      html += '<div class="item"><span class="nm"><b>'+esc(skill.name||'')+'</b><span class="acct-sub">'+esc(skill.description||'')+'</span></span>'+
+        '<span class="mt">'+esc(skill.scope||'')+'</span> <button class="mini use-skill" data-name="'+esc(skill.name||'')+'">Use</button></div>';
+    }
+    if((d.errors||[]).length) html += '<div class="act err">'+esc(d.errors.join('; '))+'</div>';
+    html += '<div class="hint">OpenAI curated catalog (لە ڕیپۆزیتۆری فەرمی OpenAI)</div>';
+    for(const name of d.catalog || []){
+      html += '<div class="item"><span class="nm">'+esc(name)+'</span>'+ (installed.has(name) ? '<span class="mt">installed</span>' : '<button class="mini install-skill" data-name="'+esc(name)+'">Add</button>')+'</div>';
+    }
+    html += '<div class="hint">سکیلی تایبەتی زیاد بکە</div><div style="display:grid;gap:8px">'+
+      '<input id="skillName" placeholder="skill-name"><input id="skillDescription" placeholder="Description: when to use it">'+
+      '<textarea id="skillInstructions" rows="5" placeholder="Skill instructions"></textarea><button id="skillCreate">Create skill</button><div id="skillError" class="act err"></div></div>';
+    openDrawer('Skills', html);
+    document.querySelectorAll('.use-skill').forEach(b=>b.onclick=()=>{ $('#prompt').value += ( $('#prompt').value ? ' ' : '' ) + '$' + b.dataset.name + ' '; $('#drawer').classList.remove('open'); $('#prompt').focus(); });
+    document.querySelectorAll('.install-skill').forEach(b=>b.onclick=async()=>{
+      b.disabled=true;
+      try { await api('skills/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:b.dataset.name})}); $('#skills').click(); }
+      catch(e){ b.disabled=false; $('#skillError').textContent=e.message; }
+    });
+    $('#skillCreate').onclick=async()=>{
+      const b=$('#skillCreate'); b.disabled=true; $('#skillError').textContent='';
+      try { await api('skills/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#skillName').value, description:$('#skillDescription').value, instructions:$('#skillInstructions').value})}); $('#skills').click(); }
+      catch(e){ $('#skillError').textContent=e.message; b.disabled=false; }
+    };
+  } catch(e){ openDrawer('Skills','<div class="act err">'+esc(e.message)+'</div>'); }
+};
+
+function historyDate(ts){
+  if(!ts) return '';
+  const d = new Date(Number(ts) * 1000);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+let historyItems = [];
+function historyTitle(item){ return item.title || item.preview || 'جلسەی بێ ناونیشان'; }
+function renderHistory(){
+  const list = document.querySelector('#historyList'); if(!list) return;
+  const search = ($('#historySearch').value || '').trim().toLocaleLowerCase();
+  const items = historyItems.filter(s => [s.title,s.preview,s.account,s.cwd].some(x=>String(x||'').toLocaleLowerCase().includes(search)));
+  $('#historyCount').textContent = items.length + ' جلسە';
+  if(!items.length){ list.innerHTML='<div class="history-empty">'+(search?'هیچ جلسەیەک نەدۆزرایەوە':'هێشتا هیچ جلسەیەک خەزن نەکراوە')+'</div>'; return; }
+  list.innerHTML = items.map(item=>{
+    const title=historyTitle(item); const current=item.id===sessionId && item.account===sessionAccount;
+    const path=(item.cwd||'').split('/').filter(Boolean).slice(-2).join('/');
+    return '<article class="history-card'+(current?' active':'')+'" data-id="'+esc(item.id)+'" data-account="'+esc(item.account)+'" data-cwd="'+esc(item.cwd||'')+'">'+
+      '<button class="history-open" type="button" aria-label="Open session">'+
+      '<div class="history-title" dir="auto">'+esc(title)+'</div>'+
+      (item.title && item.preview ? '<div class="history-preview" dir="auto">'+esc(item.preview)+'</div>' : '')+
+      '<div class="history-meta"><span>'+esc(item.account||'main')+'</span>'+(historyDate(item.modified)?'<span>'+esc(historyDate(item.modified))+'</span>':'')+
+      (path?'<span>'+esc(path)+'</span>':'')+(current?'<span>چالاک</span>':'')+'</div></button>'+
+      '<div class="history-actions"><button class="history-rename" type="button">✎ ناو بگۆڕە</button><button class="history-delete danger" type="button">⌫ بسڕەوە</button></div><div class="history-action-area"></div></article>';
+  }).join('');
+  list.querySelectorAll('.history-card').forEach(card=>{
+    const item=items.find(x=>x.id===card.dataset.id && x.account===card.dataset.account);
+    card.querySelector('.history-open').onclick=async()=>{
+      try { await openSavedSession(item.id,item.account,item.cwd); $('#drawer').classList.remove('open'); }
+      catch(e) { card.querySelector('.history-action-area').innerHTML='<div class="history-error">'+esc(e.message)+'</div>'; }
+    };
+    card.querySelector('.history-rename').onclick=()=>{
+      const area=card.querySelector('.history-action-area');
+      area.innerHTML='<div class="history-edit"><label>ناوی نوێی جلسە<input class="history-name" maxlength="100" value="'+esc(historyTitle(item))+'"></label><div class="history-error"></div><div class="history-buttons"><button class="history-cancel" type="button">پاشگەزبوونەوە</button><button class="history-save primary" type="button">خەزنکردن</button></div></div>';
+      area.querySelector('.history-cancel').onclick=()=>{area.innerHTML='';};
+      const input=area.querySelector('.history-name');input.focus();input.select();
+      area.querySelector('.history-save').onclick=async()=>{
+        const save=area.querySelector('.history-save');save.disabled=true;
+        try { const r=await api('sessions/rename',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account:item.account,id:item.id,title:input.value})});item.title=r.title;renderHistory(); }
+        catch(e){area.querySelector('.history-error').textContent=e.message;save.disabled=false;}
+      };
+    };
+    card.querySelector('.history-delete').onclick=()=>{
+      const area=card.querySelector('.history-action-area');
+      area.innerHTML='<div class="history-confirm"><div>ئەم جلسەیە بسڕدرێتەوە؟ فایلی گفتوگۆی لە سێرڤەر دەسڕێتەوە و ناتوانرێت بگەڕێندرێتەوە.</div><div class="history-error"></div><div class="history-buttons"><button class="history-cancel" type="button">پاشگەزبوونەوە</button><button class="history-confirm-delete danger" type="button">بەڵێ، بیسڕەوە</button></div></div>';
+      area.querySelector('.history-cancel').onclick=()=>{area.innerHTML='';};
+      area.querySelector('.history-confirm-delete').onclick=async()=>{
+        const button=area.querySelector('.history-confirm-delete');button.disabled=true;
+        try {
+          await api('sessions/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account:item.account,id:item.id})});
+          historyItems=historyItems.filter(x=>!(x.id===item.id && x.account===item.account));
+          if(sessionId===item.id && sessionAccount===item.account){ sessionId=null;sessionAccount=null;clearCurrentSession();log.innerHTML='';addMsg('bot','جلسەکە سڕایەوە.'); }
+          renderHistory();
+        } catch(e){area.querySelector('.history-error').textContent=e.message;button.disabled=false;}
+      };
+    };
+  });
+}
+$("#sess").onclick = async () => {
+  openDrawer('History','<div class="hint">چاوەڕوان بە…</div>');
+  try {
+    const data=await api('sessions');historyItems=data.sessions||[];
+    openDrawer('History','<section class="history-intro"><div><h2>جلسەکانت</h2><p>گەڕان، گۆڕینی ناو و بەڕێوەبردنی گفتوگۆکان</p></div><span class="history-count" id="historyCount"></span></section><input id="historySearch" class="history-search" type="search" placeholder="گەڕان بە ناوی جلسە…" aria-label="Search sessions"><div id="historyList" class="history-list"></div>');
+    $('#historySearch').addEventListener('input',renderHistory);renderHistory();
+  } catch(e){openDrawer('History','<div class="history-error">'+esc(e.message)+'</div>');}
+};
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Codex Web on Fly. A single always-on machine with a volume is all it needs:
+# the Codex CLI keeps its session state on that volume, and the web front end
+# is a thin process in front of it.
+app = "codex"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  CODEX_WEB_HOME = "/data/codex-web"
+  CODEX_WEB_PORT = "8098"
+  CODEX_WEB_BIND = "0.0.0.0"
+
+[mounts]
+  source = "codex_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8098
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 100
+
+[[vm]]
+  size = "performance-2x"
+  memory = "8gb"
